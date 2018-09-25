@@ -1,0 +1,7 @@
+---
+platform: linux
+inputs:
+- name: git-quality-pipeline
+
+run:
+  path: ./git-quality-pipeline/scripts/mvn-test.sh

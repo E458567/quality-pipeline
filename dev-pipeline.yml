@@ -1,0 +1,135 @@
+---
+resources:
+- name: git-app-source
+  type: git
+  source:
+    uri: https://github.com/E458567/spring-petclinic.git
+    branch: master
+
+- name: git-automation-scripts
+  type: git
+  source:
+    uri: https://github.com/E458567/spring-petclinic.git
+    branch: master
+
+- name: qa-tooling-env
+  type: docker-image
+  source:
+    repository: myautopoc/8-jdk-alpine-git
+    username: myautopoc
+    password: 
+
+- name: app-docker-image
+  type: docker-image
+  source:
+    repository: myautopoc/8-jdk-alpine-git
+    username: myautopoc
+    password: 
+
+- name: app-release-binary
+  type: s3
+  source:
+    bucket: releases
+    regexp: directory_on_s3/release-(.*).tgz
+    access_key_id: ACCESS-KEY
+    secret_access_key: SECRET
+
+- name: unit-test-results
+  type: s3
+  source:
+    bucket: releases
+    regexp: directory_on_s3/release-(.*).tgz
+    access_key_id: ACCESS-KEY
+    secret_access_key: SECRET
+
+- name: code-quality-report
+  type: s3
+  source:
+    bucket: releases
+    regexp: directory_on_s3/release-(.*).tgz
+    access_key_id: ACCESS-KEY
+    secret_access_key: SECRET
+
+- name: app-url-metadata
+  type: s3
+  source:
+    bucket: releases
+    regexp: directory_on_s3/release-(.*).tgz
+    access_key_id: ACCESS-KEY
+    secret_access_key: SECRET
+
+- name: qa-test-report
+  type: s3
+  source:
+    bucket: releases
+    regexp: directory_on_s3/release-(.*).tgz
+    access_key_id: ACCESS-KEY
+    secret_access_key: SECRET
+
+- name: qa-sign-off
+  type: s3
+  source:
+    bucket: releases
+    regexp: directory_on_s3/release-(.*).tgz
+    access_key_id: ACCESS-KEY
+    secret_access_key: SECRET
+
+jobs:
+- name: qa-code-scan
+  plan:
+  - get: unit-test-results
+    trigger: true
+    passed: [dev-build-app]
+  - get: git-app-source
+  - get: qa-tooling-env
+  - task: sonar scan
+    image: qa-tooling-env
+    file: tasks/code-quality-scan.yml
+  - put: code-quality-report
+
+- name: dev-build-app
+  plan:
+  - get: git-app-source
+    trigger: true
+  - task: compile, unit test and build app binary
+    file: tasks/build-release.yml
+  - put: app-release-binary
+  - put: unit-test-results
+
+- name: dev-create-image
+  plan:
+  - get: app-release-binary
+    trigger: true
+    passed: [dev-build-app]
+  - task: send quality report to app team
+    file: tasks/send-code-quality-report.yml
+  - put: app-docker-image
+
+- name: dev-deploy-k8s
+  plan:
+  - get: app-docker-image
+    trigger: true
+    passed: [dev-create-image]
+  - task: send quality report to app team
+    file: tasks/send-code-quality-report.yml
+  - put: app-url-metadata
+
+- name: qa-regression
+  plan:
+  - get: app-url-metadata
+    trigger: true
+    passed: [dev-deploy-k8s]
+  - get: qa-tooling-env
+  - get: git-automation-scripts
+  - task: send quality report to app team
+    file: tasks/send-code-quality-report.yml
+  - put: qa-test-report
+  - put: qa-sign-off
+
+- name: release-prod
+  plan:
+  - get: qa-sign-off
+    trigger: true
+    passed: [qa-regression]
+  - task: send quality report to app team
+    file: tasks/send-code-quality-report.yml
