@@ -6,12 +6,18 @@ resources:
     uri: https://github.com/E458567/spring-petclinic.git
     branch: master
 
+- name: git-quality-pipeline
+  type: git
+  source:
+    uri: https://github.com/E458567/quality-pipeline.git 
+    branch: master
+
 jobs:
-- name: compile
+- name: sonar-scan
   plan:
   - get: git-sample-app
   - get: git-quality-pipeline
-  - task: compile source and tests
+  - task: compile and unit tests
     config:
       platform: linux
       image_resource:
@@ -24,18 +30,18 @@ jobs:
       outputs:
         - name: updated-sample-app
       run:
-        path: ./git-quality-pipeline/scripts/mvn-compile.sh
+        path: git-quality-pipeline/scripts/mvn-build.sh
 
-  - put: sample-app-image
-    params:
-      build: updated-sample-app
+  - task: sonar scan
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/8-jdk-alpine-git
+      inputs:
+        - name: updated-sample-app
+        - name: git-quality-pipeline
+      run:
+        path: git-quality-pipeline/scripts/mvn-sonar.sh
 
-- name: unit-test
-  plan:
-  - get: sample-app-image
-    passed: [compile]
-    trigger: true
-  - get: git-quality-pipeline
-  - task: run JUnit tests
-    image: sample-app-image
-    file: git-quality-pipeline/tasks/task-mvn-test.yml
