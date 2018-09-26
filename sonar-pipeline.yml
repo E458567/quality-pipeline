@@ -17,13 +17,13 @@ resources:
   source:
     repository: myautopoc/spring-petclinic
     username: myautopoc
-    password: Auto1234
+    password: ((docker-hub-password))
 
 jobs:
 - name: sonar-scan
   plan:
   - get: git-sample-app
-    passed: [dev-build]
+    trigger: true
   - get: git-quality-pipeline
   - task: compile and unit tests
     config:
@@ -56,6 +56,7 @@ jobs:
 - name: dev-build
   plan:
   - get: git-sample-app
+    trigger: true
   - task: build docker image in dev
     config:
       platform: linux
