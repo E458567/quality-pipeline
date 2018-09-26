@@ -12,10 +12,18 @@ resources:
     uri: https://github.com/E458567/quality-pipeline.git 
     branch: master
 
+- name: sample-app-image
+  type: docker-image
+  source:
+    repository: myautopoc/spring-petclinic
+    username: myautopoc
+    password: Auto1234
+
 jobs:
 - name: sonar-scan
   plan:
   - get: git-sample-app
+    passed: [dev-build]
   - get: git-quality-pipeline
   - task: compile and unit tests
     config:
@@ -25,14 +33,14 @@ jobs:
         source: 
           repository: myautopoc/8-jdk-alpine-git
       inputs:
-        - name: git-sample-app
-        - name: git-quality-pipeline
+      - name: git-sample-app
+      - name: git-quality-pipeline
       outputs:
-        - name: updated-sample-app
+      - name: updated-sample-app
       run:
         path: git-quality-pipeline/scripts/mvn-build.sh
 
-  - task: sonar scan
+  - task: code quality scan
     config:
       platform: linux
       image_resource:
@@ -40,8 +48,29 @@ jobs:
         source: 
           repository: myautopoc/8-jdk-alpine-git
       inputs:
-        - name: updated-sample-app
-        - name: git-quality-pipeline
+      - name: updated-sample-app
+      - name: git-quality-pipeline
       run:
         path: git-quality-pipeline/scripts/mvn-sonar.sh
+
+- name: dev-build
+  plan:
+  - get: git-sample-app
+  - task: build docker image in dev
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/8-jdk-alpine-git
+      inputs:
+        - name: git-sample-app
+      outputs:
+        - name: updated-sample-app
+      run:
+        path: git-sample-app/ci/build.sh
+
+  - put: sample-app-image
+    params:
+      build: updated-sample-app
 
