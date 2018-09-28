@@ -1,0 +1,3 @@
+aws ec2 describe-instances --query "Reservations[*].Instances[*].[InstanceId,PublicIpAddress]" --filters "Name=instance-state-name,Values=running" --output text
+i-0f7f9d2544bad1e27	35.170.63.77
+
