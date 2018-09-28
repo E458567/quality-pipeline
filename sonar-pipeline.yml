@@ -91,7 +91,8 @@ jobs:
       inputs:
       - name: git-sample-app
       run:
-        path: git-sample-app/ci/deploy.sh
+        dir: git-sample-app/ci
+        path: ./deploy.sh
       params:
         AWS_ACCESS_KEY_ID: ((AWS_ACCESS_KEY_ID))
         AWS_SECRET_ACCESS_KEY: ((AWS_SECRET_ACCESS_KEY))
