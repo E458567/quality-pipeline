@@ -16,14 +16,14 @@ resources:
   type: docker-image
   source:
     repository: myautopoc/spring-petclinic
-    username: myautopoc
-    password: ((docker-hub-password))
+    username: ((DOCKER_HUB_USERNAME))
+    password: ((DOCKER_HUB_PASSWORD))
 
 jobs:
 - name: sonar-scan
   plan:
   - get: git-sample-app
-    trigger: true
+    #trigger: true
   - get: git-quality-pipeline
   - task: compile and unit tests
     config:
@@ -56,7 +56,7 @@ jobs:
 - name: dev-build
   plan:
   - get: git-sample-app
-    trigger: true
+    #trigger: true
   - task: build docker image in dev
     config:
       platform: linux
@@ -74,4 +74,26 @@ jobs:
   - put: sample-app-image
     params:
       build: updated-sample-app
+
+- name: aws-deploy
+  plan:
+  - get: sample-app-image
+    #trigger: true
+    passed: [dev-build]
+  - get: git-sample-app
+  - task: launch AWS EC2 to run docker container (new image just built)
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/python-awscli
+      inputs:
+      - name: git-sample-app
+      run:
+        path: git-sample-app/ci/deploy.sh
+      params:
+        AWS_ACCESS_KEY_ID: ((AWS_ACCESS_KEY_ID))
+        AWS_SECRET_ACCESS_KEY: ((AWS_SECRET_ACCESS_KEY))
+        AWS_DEFAULT_REGION: ((AWS_DEFAULT_REGION))
 
