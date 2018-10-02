@@ -1,0 +1,143 @@
+---
+resources:
+- name: git-sample-app
+  type: git
+  source:
+    uri: https://github.com/E458567/spring-petclinic.git
+    branch: master
+
+- name: git-quality-pipeline
+  type: git
+  source:
+    uri: https://github.com/E458567/quality-pipeline.git 
+    branch: master
+
+- name: git-selenium-tests
+  type: git
+  source:
+    uri: https://github.com/E458567/selenium-regression.git
+    branch: master
+
+- name: sample-app-image
+  type: docker-image
+  source:
+    repository: myautopoc/spring-petclinic
+    username: ((DOCKER_HUB_USERNAME))
+    password: ((DOCKER_HUB_PASSWORD))
+
+- name: s3-deployment-info
+  type: s3
+  source:
+    bucket: my-sample-app-output-bucket
+    versioned_file: deployment-info.conf
+    access_key_id: ((AWS_ACCESS_KEY_ID))
+    secret_access_key: ((AWS_SECRET_ACCESS_KEY))
+    region_name: ((AWS_DEFAULT_REGION))
+
+jobs:
+- name: sonar-scan
+  plan:
+  - get: git-sample-app
+    #trigger: true
+  - get: git-quality-pipeline
+  - task: compile and unit tests
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/8-jdk-alpine-git
+      inputs:
+      - name: git-sample-app
+      - name: git-quality-pipeline
+      outputs:
+      - name: updated-sample-app
+      run:
+        path: git-quality-pipeline/scripts/mvn-build.sh
+
+  - task: code quality scan
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/8-jdk-alpine-git
+      inputs:
+      - name: updated-sample-app
+      - name: git-quality-pipeline
+      run:
+        path: git-quality-pipeline/scripts/mvn-sonar.sh
+
+- name: dev-build
+  plan:
+  - get: git-sample-app
+    #trigger: true
+  - task: build docker image in dev
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/8-jdk-alpine-git
+      inputs:
+        - name: git-sample-app
+      outputs:
+        - name: updated-sample-app
+      run:
+        path: git-sample-app/ci/build.sh
+
+  - put: sample-app-image
+    params:
+      build: updated-sample-app
+
+- name: aws-deploy
+  plan:
+  - get: sample-app-image
+    #trigger: true
+    passed: [dev-build]
+  - get: git-sample-app
+  - task: launch AWS EC2 to run docker container (new image just built)
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/python-awscli
+      inputs:
+      - name: git-sample-app
+      outputs:
+      - name: output-dir
+      run:
+        dir: git-sample-app/ci
+        path: ./deploy.sh
+      params:
+        AWS_ACCESS_KEY_ID: ((AWS_ACCESS_KEY_ID))
+        AWS_SECRET_ACCESS_KEY: ((AWS_SECRET_ACCESS_KEY))
+        AWS_DEFAULT_REGION: ((AWS_DEFAULT_REGION))
+  - put: s3-deployment-info
+    params:
+      file: output-dir/deployment-info.conf
+
+
+- name: qa-selenium-tests
+  plan:
+  - get: s3-deployment-info
+    passed: [aws-deploy]
+  - get: git-selenium-tests
+    #trigger: true
+  - task: run automated selenium tests against new deployment in AWS EC2
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: 
+          repository: myautopoc/8-jdk-alpine-git
+      inputs:
+      - name: s3-deployment-info
+      - name: git-selenium-tests
+      outputs:
+      - name: selenium-output-dir
+      run:
+        path: git-selenium-tests/run-tests.sh
+      params:
+        DOCKER_URL: ((DOCKER_URL))
