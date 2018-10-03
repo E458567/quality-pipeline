@@ -34,6 +34,15 @@ resources:
     secret_access_key: ((AWS_SECRET_ACCESS_KEY))
     region_name: ((AWS_DEFAULT_REGION))
 
+- name: s3-test-results
+  type: s3
+  source:
+    bucket: my-selenium-tests-output-bucket
+    versioned_file: selenium-test-results.tar.gz
+    access_key_id: ((AWS_ACCESS_KEY_ID))
+    secret_access_key: ((AWS_SECRET_ACCESS_KEY))
+    region_name: ((AWS_DEFAULT_REGION))
+
 jobs:
 - name: sonar-scan
   plan:
@@ -141,3 +150,6 @@ jobs:
         path: git-qa-regression/run-tests.sh
       params:
         DOCKER_URL: ((DOCKER_URL))
+  - put: s3-test-results
+    params:
+      file: selenium-output-dir/selenium-test-results.tar.gz
